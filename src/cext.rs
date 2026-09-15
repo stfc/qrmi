@@ -1297,6 +1297,56 @@ pub unsafe extern "C" fn qrmi_resource_task_status(
 }
 
 /// @ingroup QrmiQuantumResource
+/// Returns provider-reported task usage as serialized JSON.
+///
+/// The JSON is the serialized Rust `TaskUsage` contract. The returned string
+/// must be freed with qrmi_string_free().
+///
+/// # Safety
+///
+/// * `qrmi` must have been returned by a previous call to qrmi_resource_new().
+/// * `task_id` must point to a valid nul-terminated UTF-8 string.
+/// * `usage_json_out` must be non-null.
+#[no_mangle]
+pub unsafe extern "C" fn qrmi_resource_task_usage(
+    qrmi: *mut QuantumResource,
+    task_id: *const c_char,
+    usage_json_out: *mut *mut c_char,
+) -> ReturnCode {
+    crate::common::initialize();
+    if qrmi.is_null() || task_id.is_null() || usage_json_out.is_null() {
+        return ReturnCode::NullPointerError;
+    }
+
+    *usage_json_out = std::ptr::null_mut();
+
+    let task_id = match CStr::from_ptr(task_id).to_str() {
+        Ok(value) => value,
+        Err(err) => return _fail(QrmiError::InvalidInput(format!("task_id: {err}"))),
+    };
+
+    let result = (*qrmi)
+        .runtime
+        .block_on(async { (*qrmi).inner.task_usage(task_id).await });
+
+    match result {
+        Ok(record) => {
+            let json = match serde_json::to_string(&record) {
+                Ok(json) => json,
+                Err(err) => return _fail(QrmiError::Other(err.into())),
+            };
+            let json = match CString::new(json) {
+                Ok(json) => json,
+                Err(err) => return _fail(QrmiError::Other(err.into())),
+            };
+            *usage_json_out = json.into_raw();
+            ReturnCode::Success
+        }
+        Err(err) => _fail(err),
+    }
+}
+
+/// @ingroup QrmiQuantumResource
 /// Returns the result of a task.
 ///
 /// # Safety
@@ -2016,6 +2066,49 @@ pub unsafe extern "C" fn qrmi_provider_least_busy(
         }
         Ok(None) => {
             *resource_out = std::ptr::null_mut();
+            ReturnCode::Success
+        }
+        Err(err) => _fail(err),
+    }
+}
+
+/// @ingroup QrmiResourceProvider
+/// Returns provider-account-scope usage as serialized JSON.
+///
+/// The JSON is the serialized Rust `AccountUsage` contract. The returned
+/// string must be freed with qrmi_string_free().
+///
+/// # Safety
+///
+/// * `provider` must have been returned by qrmi_provider_new().
+/// * `usage_json_out` must be non-null.
+#[no_mangle]
+pub unsafe extern "C" fn qrmi_provider_account_usage(
+    provider: *mut ResourceProvider,
+    usage_json_out: *mut *mut c_char,
+) -> ReturnCode {
+    crate::common::initialize();
+    if provider.is_null() || usage_json_out.is_null() {
+        return ReturnCode::NullPointerError;
+    }
+
+    *usage_json_out = std::ptr::null_mut();
+
+    let result = (*provider)
+        .runtime
+        .block_on(async { (*provider).inner.account_usage().await });
+
+    match result {
+        Ok(record) => {
+            let json = match serde_json::to_string(&record) {
+                Ok(json) => json,
+                Err(err) => return _fail(QrmiError::Other(err.into())),
+            };
+            let json = match CString::new(json) {
+                Ok(json) => json,
+                Err(err) => return _fail(QrmiError::Other(err.into())),
+            };
+            *usage_json_out = json.into_raw();
             ReturnCode::Success
         }
         Err(err) => _fail(err),

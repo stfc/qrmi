@@ -40,6 +40,9 @@ pub struct GetUsage200Response {
         skip_serializing_if = "Option::is_none"
     )]
     pub usage_limit_reached: Option<bool>,
+    /// Earliest datetime at which usage falls below the instance limit, if reported.
+    #[serde(rename = "time_available_at", skip_serializing_if = "Option::is_none")]
+    pub time_available_at: Option<String>,
 }
 
 impl GetUsage200Response {
@@ -56,6 +59,7 @@ impl GetUsage200Response {
             usage_limit_seconds: None,
             usage_allocation_seconds: None,
             usage_limit_reached: None,
+            time_available_at: None,
         }
     }
 }

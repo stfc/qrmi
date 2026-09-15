@@ -169,7 +169,7 @@ pub async fn get_usage(
     // add a prefix to parameters to efficiently prevent name collisions
     let p_header_ibm_api_version = ibm_api_version;
 
-    let uri_str = format!("{}/v1/instances/usage", configuration.base_path);
+    let uri_str = format!("{}/instances/usage", configuration.base_path);
     let mut req_builder = configuration.client.request(reqwest::Method::GET, &uri_str);
 
     if let Some(ref user_agent) = configuration.user_agent {

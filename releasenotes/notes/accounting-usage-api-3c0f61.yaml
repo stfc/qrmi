@@ -1,0 +1,7 @@
+features:
+  - |
+    Adds provider-reported task usage through ``QuantumResource.task_usage()``
+    and provider-account-scope usage through ``ResourceProvider.account_usage()``.
+    The shared ``UsageMetric`` contract preserves provider units and semantics;
+    IBM Quantum Compute Service maps task metrics from ``/jobs/{id}/metrics``
+    and configured service-instance usage from ``/instances/usage``.

@@ -1,6 +1,7 @@
 // This code is part of Qiskit.
 //
 // (C) Copyright IBM, Pasqal 2025, 2026
+// (C) Copyright UKRI-STFC (Hartree Centre) 2026
 //
 // This code is licensed under the Apache License, Version 2.0. You may
 // obtain a copy of this license in the LICENSE.txt file in the root directory
@@ -86,7 +87,7 @@ mod version_info {
     pub static VERSION_INFO: [u8; VERSION_LEN] = str_to_array(VERSION_STR);
 }
 
-use crate::models::{Payload, ResourceType, Target, TaskResult, TaskStatus};
+use crate::models::{Payload, ResourceType, Target, TaskResult, TaskStatus, TaskUsage};
 use async_trait::async_trait;
 
 /// Result type used throughout the `QuantumResource` / `ResourceProvider` APIs.
@@ -283,6 +284,12 @@ pub trait QuantumResource: Send + Sync {
         ))
     }
 
+    /// Returns provider-reported usage information for the task.
+    async fn task_usage(&mut self, task_id: &str) -> Result<TaskUsage> {
+        Err(QrmiError::UnsupportedFunction(
+            "qrmi::QuantumResource::task_usage".to_string(),
+        ))
+    }
     /// Returns the results of the task.
     ///
     /// # Arguments

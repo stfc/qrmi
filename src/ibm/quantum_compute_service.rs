@@ -16,7 +16,9 @@ use crate::ibm::error::{classify, IbmError, ResourceKind};
 use crate::ibm::quantum_compute_service::models::{
     CreateJobRequestOneOfAllOfParams, EstimatorV2Input, NoiseLearnerInput, SamplerV2Input,
 };
-use crate::models::{Payload, ResourceType, Target, TaskResult, TaskStatus};
+use crate::models::{
+    AccountingStatus, Payload, ResourceType, Target, TaskResult, TaskStatus, TaskUsage, UsageMetric,
+};
 use crate::{QuantumResource, Result};
 use log::error;
 use quantum_compute_client::apis::{auth, backends_api, configuration, jobs_api, sessions_api};
@@ -28,6 +30,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::env;
 
+use anyhow::Context;
 use async_trait::async_trait;
 
 /// QRMI implementation for IBM Qiskit Runtime Service.
@@ -98,6 +101,47 @@ impl IBMQuantumComputeService {
     }
 }
 
+fn task_usage_from_job_metrics(task_id: &str, job_metrics: &models::JobMetrics) -> TaskUsage {
+    let timestamps = job_metrics.timestamps.as_deref();
+    let provider_usage = job_metrics.usage.as_deref();
+    let mut metrics = Vec::new();
+
+    if let Some(value) = provider_usage.and_then(|usage| usage.qpu_charge_time_seconds) {
+        metrics.push(UsageMetric {
+            name: "ibm.job.qpu_charge_time".to_string(),
+            value,
+            unit: "seconds".to_string(),
+            semantics:
+                "IBM Quantum Compute Service resource usage used to calculate capacity consumption."
+                    .to_string(),
+        });
+    }
+    if let Some(value) = job_metrics.circuits_execution_time_ns {
+        metrics.push(UsageMetric {
+            name: "ibm.job.circuits_execution_time".to_string(),
+            value,
+            unit: "nanoseconds".to_string(),
+            semantics:
+                "IBM Quantum Compute Service time the job spent executing circuits on the QPU."
+                    .to_string(),
+        });
+    }
+
+    let accounting_status = match provider_usage.and_then(|usage| usage.status) {
+        Some(models::job_metrics_usage::Status::Pending) => Some(AccountingStatus::Pending),
+        Some(models::job_metrics_usage::Status::Complete) => Some(AccountingStatus::Final),
+        None => None,
+    };
+
+    TaskUsage {
+        task_id: task_id.to_string(),
+        created: timestamps.and_then(|timestamps| timestamps.created.clone()),
+        running: timestamps.and_then(|timestamps| timestamps.running.clone()),
+        finished: timestamps.and_then(|timestamps| timestamps.finished.clone()),
+        accounting_status,
+        metrics,
+    }
+}
 // Implement the QuantumResource trait using the asynchronous wrappers.
 #[async_trait]
 impl QuantumResource for IBMQuantumComputeService {
@@ -381,6 +425,30 @@ impl QuantumResource for IBMQuantumComputeService {
         }
     }
 
+    /// Returns provider-reported usage for a job.
+    async fn task_usage(&mut self, task_id: &str) -> Result<TaskUsage> {
+        auth::check_token(
+            &self.api_key,
+            &self.iam_endpoint,
+            &mut self.config.bearer_access_token,
+            &mut self.token_expiration,
+            &mut self.token_lifetime,
+        )
+        .await
+        .context(
+            "failed to renew IBM Quantum Compute Service token before retrieving task usage",
+        )?;
+
+        // Keep the requested IBM API version aligned with the JobMetrics model below.
+        // In 2026-04-15, IBM moved circuits_execution_time_ns to the response root
+        // while retaining usage.qpu_charge_time_seconds. Omitting this header can
+        // select an older response shape and silently drop authoritative metrics.
+        let job_metrics = jobs_api::get_job_metrics_jid(&self.config, task_id, Some("2026-04-15"))
+            .await
+            .map_err(|e| classify(e, ResourceKind::Job))?;
+
+        Ok(task_usage_from_job_metrics(task_id, &job_metrics))
+    }
     /// Retrieves the results of a completed job.
     ///
     /// This function calls GET /jobs/{id}/results and serializes the returned JSON into a string.

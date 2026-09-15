@@ -1,6 +1,7 @@
 // This code is part of Qiskit.
 //
 // (C) Copyright IBM 2026
+// (C) Copyright UKRI-STFC (Hartree Centre) 2026
 //
 // This code is licensed under the Apache License, Version 2.0. You may
 // obtain a copy of this license in the LICENSE.txt file in the root directory
@@ -12,7 +13,7 @@
 
 //! Trait for vendor-level quantum resource providers.
 
-use crate::models::ResourceType;
+use crate::models::{AccountUsage, ResourceType};
 use crate::{QrmiError, QuantumResource, Result};
 use async_trait::async_trait;
 use std::collections::HashMap;
@@ -76,6 +77,16 @@ pub trait ResourceProvider: Send + Sync {
         filters: Option<String>,
     ) -> Result<Option<Box<dyn QuantumResource + Send + Sync>>> {
         Ok(self.resources(filters).await?.into_iter().next())
+    }
+
+    /// Returns usage for the provider-side accounting scope configured for this provider.
+    ///
+    /// The returned [`AccountUsage`] is provider usage, not an HPC site project,
+    /// budget, rate, fair-share, or chargeback model.
+    async fn account_usage(&self) -> Result<AccountUsage> {
+        Err(QrmiError::UnsupportedFunction(
+            "qrmi::ResourceProvider::account_usage".to_string(),
+        ))
     }
 }
 

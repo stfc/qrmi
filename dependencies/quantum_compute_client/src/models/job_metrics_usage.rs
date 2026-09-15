@@ -14,6 +14,15 @@ use serde::{Deserialize, Serialize};
 /// JobMetricsUsage : Contains information about job usage metrics
 #[derive(Clone, Default, Debug, PartialEq, Serialize, Deserialize)]
 pub struct JobMetricsUsage {
+    /// Resource usage used to calculate capacity consumption, in seconds.
+    #[serde(
+        rename = "qpu_charge_time_seconds",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub qpu_charge_time_seconds: Option<f64>,
+    /// Status of usage data completeness.
+    #[serde(rename = "status", skip_serializing_if = "Option::is_none")]
+    pub status: Option<Status>,
     /// Total quantum seconds used by the job
     #[serde(rename = "quantum_seconds", skip_serializing_if = "Option::is_none")]
     pub quantum_seconds: Option<i64>,
@@ -26,8 +35,21 @@ impl JobMetricsUsage {
     /// Contains information about job usage metrics
     pub fn new() -> JobMetricsUsage {
         JobMetricsUsage {
+            qpu_charge_time_seconds: None,
+            status: None,
             quantum_seconds: None,
             seconds: None,
         }
     }
+}
+
+#[derive(
+    Clone, Copy, Debug, Default, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize,
+)]
+pub enum Status {
+    #[serde(rename = "pending")]
+    #[default]
+    Pending,
+    #[serde(rename = "complete")]
+    Complete,
 }

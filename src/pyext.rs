@@ -15,7 +15,9 @@ use crate::error::{QrmiError, QrmiErrorKind};
 use crate::ibm::IBMQiskitRuntimeServiceProvider;
 use crate::ibm::IBMQuantumComputeServiceProvider;
 use crate::ibm::IBMQuantumSystemProvider;
-use crate::models::{Payload, ResourceDef, Target, TaskResult, TaskStatus};
+use crate::models::{
+    AccountUsage, Payload, ResourceDef, Target, TaskResult, TaskStatus, TaskUsage,
+};
 use crate::QuantumResource;
 use pyo3::prelude::*;
 use pyo3_stub_gen::{create_exception, define_stub_info_gatherer, derive::*};
@@ -340,6 +342,18 @@ impl PyQuantumResource {
         let result = py.detach(|| self.rt.block_on(async { self.qrmi.metadata().await }));
         Ok(result)
     }
+
+    fn task_usage(&mut self, py: Python<'_>, task_id: &str) -> PyResult<TaskUsage> {
+        crate::common::initialize();
+        let result = py.detach(|| {
+            self.rt
+                .block_on(async { self.qrmi.task_usage(task_id).await })
+        });
+        match result {
+            Ok(v) => Ok(v),
+            Err(e) => Err(to_py_err(e)),
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -542,6 +556,16 @@ impl PyResourceProvider {
         });
         match result {
             Ok(resource) => Ok(resource.map(PyQuantumResource::from_inner)),
+            Err(e) => Err(to_py_err(e)),
+        }
+    }
+
+    /// Returns usage for the provider-side accounting scope configured for this provider.
+    pub fn account_usage(&self, py: Python<'_>) -> PyResult<AccountUsage> {
+        crate::common::initialize();
+        let result = py.detach(|| self.rt.block_on(async { self.inner.account_usage().await }));
+        match result {
+            Ok(record) => Ok(record),
             Err(e) => Err(to_py_err(e)),
         }
     }
@@ -820,6 +844,10 @@ fn qrmi(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<crate::models::Payload>()?;
     m.add_class::<crate::models::Target>()?;
     m.add_class::<crate::models::TaskResult>()?;
+    m.add_class::<crate::models::UsageMetric>()?;
+    m.add_class::<crate::models::AccountingStatus>()?;
+    m.add_class::<crate::models::TaskUsage>()?;
+    m.add_class::<crate::models::AccountUsage>()?;
     m.add_class::<PyResourceDef>()?;
     m.add_class::<PyResourceProvider>()?;
     m.add_class::<PyConfig>()?;

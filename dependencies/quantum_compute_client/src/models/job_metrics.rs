@@ -20,6 +20,12 @@ pub struct JobMetrics {
     pub bss: Option<Box<models::JobMetricsBss>>,
     #[serde(rename = "usage", skip_serializing_if = "Option::is_none")]
     pub usage: Option<Box<models::JobMetricsUsage>>,
+    /// Time spent executing circuits on the QPU, in nanoseconds.
+    #[serde(
+        rename = "circuits_execution_time_ns",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub circuits_execution_time_ns: Option<f64>,
     /// Qiskit version used during execution of the job
     #[serde(rename = "qiskit_version", skip_serializing_if = "Option::is_none")]
     pub qiskit_version: Option<String>,
@@ -53,6 +59,7 @@ impl JobMetrics {
             timestamps: None,
             bss: None,
             usage: None,
+            circuits_execution_time_ns: None,
             qiskit_version: None,
             estimated_start_time: None,
             estimated_completion_time: None,
